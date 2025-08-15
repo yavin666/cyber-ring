@@ -2,7 +2,13 @@
   "manifest_version": 3,
   "name": "赛博风铃",
   "version": "1.0.0",
-  "description": "一个极致黑白简约的可交互风铃Chrome插件",
+  "description": "起风了",
+  "icons": {
+    "16": "icons/icon.png",
+    "32": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
+  },
   "permissions": [
     "activeTab"
   ],
@@ -16,7 +22,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["ring.mp3"],
+      "resources": ["ring.mp3", "icons/icon.svg", "icons/icon16.svg", "icons/icon48.svg"],
       "matches": ["<all_urls>"]
     }
   ]

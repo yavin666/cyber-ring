@@ -60,16 +60,23 @@ if (!window.cyberRingInjected) {
       this.yesElement = null;
       this.noElement = null;
       
-      // 创建音频对象
-      this.audio = new Audio(chrome.runtime.getURL('ring.mp3'));
-      this.audio.volume = 0.5; // 设置音量为50%
-      this.audio.preload = 'auto'; // 预加载音频
+      // 音频相关属性
+      this.audio = null;
+      this.audioLoaded = false;
+      this.audioLoadAttempts = 0;
+      this.maxRetryAttempts = 3;
+      this.retryDelay = 1000; // 1秒重试延迟
+      this.audioUnlocked = false; // 音频上下文是否已解锁
+      this.pendingPlay = false; // 是否有待播放的音效
+      this.userInteracted = false; // 用户是否已交互
+      this.silentMode = false; // 静音模式
+      this.audioPermissionGranted = null; // 音频权限状态
       
       this.init();
     }
 
     /**
-     * 初始化DOM元素引用
+     * 初始化DOM元素引用和音频加载
      */
     init() {
       const container = document.getElementById('cyber-ring-container');
@@ -78,6 +85,287 @@ if (!window.cyberRingInjected) {
         this.noElement = container.querySelector('.control-text.no');
         // 初始状态显示"no"
         this.updateDisplay(false);
+      }
+      
+      // 检查音频权限
+      this.checkAudioPermissions();
+      
+      // 设置用户交互监听器来解锁音频
+      this.setupUserInteractionListeners();
+      
+      // 异步初始化音频
+      this.initAudio();
+    }
+    
+    /**
+     * 异步初始化音频文件
+     */
+    async initAudio() {
+      try {
+        console.log('[风铃音效] 开始初始化音频...');
+        
+        // 获取音频文件URL
+        const audioUrl = chrome.runtime.getURL('ring.mp3');
+        console.log('[风铃音效] 音频文件URL:', audioUrl);
+        
+        // 验证音频文件是否可访问
+        await this.validateAudioFile(audioUrl);
+        
+        // 创建音频对象
+        this.audio = new Audio();
+        
+        // 设置音频属性
+        this.audio.volume = 0.3; // 降低音量避免过响
+        this.audio.preload = 'metadata'; // 改为metadata，减少初始加载
+        this.audio.crossOrigin = 'anonymous'; // 设置跨域属性
+        
+        // 添加音频事件监听器
+        this.setupAudioEventListeners();
+        
+        // 设置音频源
+        this.audio.src = audioUrl;
+        
+        // 等待音频元数据加载完成
+        await this.waitForAudioMetadata();
+        
+        console.log('[风铃音效] 音频初始化成功');
+        
+      } catch (error) {
+        console.error('[风铃音效] 音频初始化失败:', error);
+        await this.retryAudioInit();
+      }
+    }
+    
+    /**
+     * 验证音频文件是否可访问
+     * @param {string} audioUrl - 音频文件URL
+     */
+    async validateAudioFile(audioUrl) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('HEAD', audioUrl, true);
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            console.log('[风铃音效] 音频文件验证成功');
+            resolve();
+          } else {
+            reject(new Error(`音频文件访问失败，状态码: ${xhr.status}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('音频文件网络请求失败'));
+        xhr.ontimeout = () => reject(new Error('音频文件请求超时'));
+        xhr.timeout = 5000; // 5秒超时
+        xhr.send();
+      });
+    }
+    
+    /**
+     * 设置音频事件监听器
+     */
+    setupAudioEventListeners() {
+      this.audio.addEventListener('loadstart', () => {
+        console.log('[风铃音效] 开始加载音频数据');
+      });
+      
+      this.audio.addEventListener('loadeddata', () => {
+        console.log('[风铃音效] 音频数据加载完成');
+      });
+      
+      this.audio.addEventListener('canplaythrough', () => {
+        console.log('[风铃音效] 音频可以完整播放');
+        this.audioLoaded = true;
+      });
+      
+      this.audio.addEventListener('error', (e) => {
+        console.error('[风铃音效] 音频加载错误:', e.target.error);
+        this.audioLoaded = false;
+      });
+      
+      this.audio.addEventListener('stalled', () => {
+        console.warn('[风铃音效] 音频加载停滞');
+      });
+    }
+    
+    /**
+     * 等待音频元数据加载完成
+     */
+    async waitForAudioMetadata() {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('音频元数据加载超时'));
+        }, 5000); // 5秒超时
+        
+        const onLoadedMetadata = () => {
+          clearTimeout(timeout);
+          this.audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+          this.audio.removeEventListener('error', onError);
+          this.audioLoaded = true;
+          console.log('[风铃音效] 音频元数据加载完成，时长:', this.audio.duration);
+          resolve();
+        };
+        
+        const onError = (e) => {
+          clearTimeout(timeout);
+          this.audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+          this.audio.removeEventListener('error', onError);
+          const errorMsg = this.getAudioErrorMessage(this.audio.error);
+          reject(new Error(`音频加载错误: ${errorMsg}`));
+        };
+        
+        this.audio.addEventListener('loadedmetadata', onLoadedMetadata);
+        this.audio.addEventListener('error', onError);
+        
+        // 如果已经加载了元数据，直接resolve
+        if (this.audio.readyState >= 1) {
+          onLoadedMetadata();
+        }
+      });
+    }
+    
+    /**
+     * 等待音频数据加载完成（用于播放前检查）
+     */
+    async waitForAudioLoad() {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('音频数据加载超时'));
+        }, 3000); // 3秒超时
+        
+        const checkLoad = () => {
+          if (this.audio.readyState >= 2) { // HAVE_CURRENT_DATA
+            clearTimeout(timeout);
+            resolve();
+          } else if (this.audio.error) {
+            clearTimeout(timeout);
+            const errorMsg = this.getAudioErrorMessage(this.audio.error);
+            reject(new Error(`音频解码错误: ${errorMsg}`));
+          } else {
+            setTimeout(checkLoad, 100);
+          }
+        };
+        
+        checkLoad();
+      });
+    }
+    
+    /**
+     * 获取音频错误信息
+     * @param {MediaError} error - 音频错误对象
+     * @returns {string} 错误描述
+     */
+    getAudioErrorMessage(error) {
+      if (!error) return '未知错误';
+      
+      switch (error.code) {
+        case MediaError.MEDIA_ERR_ABORTED:
+          return '音频加载被中止';
+        case MediaError.MEDIA_ERR_NETWORK:
+          return '网络错误导致音频加载失败';
+        case MediaError.MEDIA_ERR_DECODE:
+          return '音频解码失败，可能文件损坏';
+        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+          return '音频格式不支持或文件不存在';
+        default:
+          return `音频错误 (代码: ${error.code})`;
+      }
+    }
+    
+    /**
+     * 检查音频权限
+     */
+    async checkAudioPermissions() {
+      try {
+        // 检查浏览器是否支持权限API
+        if ('permissions' in navigator) {
+          // 检查音频权限（虽然大多数浏览器不需要显式权限）
+          const result = await navigator.permissions.query({ name: 'microphone' });
+          console.log('[风铃音效] 音频权限状态:', result.state);
+          
+          if (result.state === 'denied') {
+            console.warn('[风铃音效] 音频权限被拒绝，启用静音模式');
+            this.silentMode = true;
+            this.audioPermissionGranted = false;
+          } else {
+            this.audioPermissionGranted = true;
+          }
+        } else {
+          console.log('[风铃音效] 浏览器不支持权限API，假设权限已授予');
+          this.audioPermissionGranted = true;
+        }
+      } catch (error) {
+        console.warn('[风铃音效] 权限检查失败:', error);
+        // 权限检查失败时，假设权限已授予
+        this.audioPermissionGranted = true;
+      }
+    }
+    
+    /**
+     * 启用静音模式
+     */
+    enableSilentMode() {
+      this.silentMode = true;
+      console.log('[风铃音效] 已启用静音模式');
+      
+      // 显示静音模式提示
+      this.showSilentModeNotification();
+    }
+    
+    /**
+     * 显示静音模式通知
+     */
+    showSilentModeNotification() {
+      const notification = document.createElement('div');
+      notification.textContent = '🔇 风铃音效已静音';
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background: rgba(255, 165, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        z-index: 10000;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      `;
+      
+      document.body.appendChild(notification);
+      
+      // 2秒后自动移除通知
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }, 2000);
+    }
+    
+    /**
+     * 重试音频初始化
+     */
+    async retryAudioInit() {
+      this.audioLoadAttempts++;
+      
+      if (this.audioLoadAttempts < this.maxRetryAttempts) {
+        console.log(`[风铃音效] 第${this.audioLoadAttempts}次重试音频初始化...`);
+        
+        // 等待重试延迟
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+        
+        // 清理之前的音频对象
+        if (this.audio) {
+          this.audio.src = '';
+          this.audio = null;
+        }
+        
+        // 重新初始化
+        await this.initAudio();
+      } else {
+        console.error('[风铃音效] 音频初始化重试次数已达上限，放弃加载');
+        this.audioLoaded = false;
       }
     }
 
@@ -98,24 +386,176 @@ if (!window.cyberRingInjected) {
     }
     
     /**
+     * 设置用户交互监听器来解锁音频上下文
+     */
+    setupUserInteractionListeners() {
+      const unlockAudio = async () => {
+        if (!this.userInteracted) {
+          this.userInteracted = true;
+          console.log('[风铃音效] 检测到用户交互，尝试解锁音频上下文');
+          
+          try {
+            // 尝试解锁音频上下文
+            await this.unlockAudioContext();
+            
+            // 如果有待播放的音效，现在播放
+            if (this.pendingPlay) {
+              this.pendingPlay = false;
+              await this.playRingSound();
+            }
+          } catch (error) {
+            console.error('[风铃音效] 音频上下文解锁失败:', error);
+          }
+        }
+      };
+      
+      // 监听多种用户交互事件
+      const events = ['click', 'touchstart', 'keydown', 'mousedown'];
+      events.forEach(event => {
+        document.addEventListener(event, unlockAudio, { once: true, passive: true });
+      });
+      
+      // 5秒后移除监听器（避免内存泄漏）
+      setTimeout(() => {
+        events.forEach(event => {
+          document.removeEventListener(event, unlockAudio);
+        });
+      }, 5000);
+    }
+    
+    /**
+     * 解锁音频上下文
+     */
+    async unlockAudioContext() {
+      try {
+        if (this.audio) {
+          // 尝试播放一个静音的短音频来解锁上下文
+          const originalVolume = this.audio.volume;
+          this.audio.volume = 0;
+          this.audio.currentTime = 0;
+          
+          const playPromise = this.audio.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+            this.audio.pause();
+            this.audio.currentTime = 0;
+            this.audio.volume = originalVolume;
+            this.audioUnlocked = true;
+            console.log('[风铃音效] 音频上下文解锁成功');
+          }
+        }
+      } catch (error) {
+        console.warn('[风铃音效] 音频上下文解锁失败:', error);
+        // 即使解锁失败，也标记为已尝试
+        this.audioUnlocked = true;
+      }
+    }
+    
+    /**
      * 播放风铃音效
      */
-    playRingSound() {
+    async playRingSound() {
       try {
+        // 检查音频是否已加载
+        if (!this.audioLoaded || !this.audio) {
+          console.warn('[风铃音效] 音频未加载，尝试重新初始化...');
+          await this.initAudio();
+          
+          if (!this.audioLoaded || !this.audio) {
+            console.error('[风铃音效] 音频仍未加载，跳过播放');
+            return;
+          }
+        }
+        
+        // 检查是否需要用户交互来解锁音频
+        if (!this.userInteracted) {
+          console.warn('[风铃音效] 需要用户交互来解锁音频，标记为待播放');
+          this.pendingPlay = true;
+          this.showAudioTip();
+          return;
+        }
+        
+        // 检查音频状态
+        if (this.audio.readyState < 2) {
+          console.warn('[风铃音效] 音频数据不足，等待加载...');
+          try {
+            await this.waitForAudioLoad();
+          } catch (loadError) {
+            console.error('[风铃音效] 音频加载失败:', loadError);
+            return;
+          }
+        }
+        
         // 重置音频到开始位置
         this.audio.currentTime = 0;
+        
+        console.log('[风铃音效] 开始播放音效');
+        
         // 播放音效
         const playPromise = this.audio.play();
         
         // 处理播放Promise（现代浏览器要求）
         if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.warn('风铃音效播放失败:', error);
-          });
+          await playPromise;
+          console.log('[风铃音效] 音效播放成功');
         }
+        
       } catch (error) {
-        console.warn('风铃音效播放出错:', error);
+        console.error('[风铃音效] 播放失败:', error);
+        
+        // 详细的错误处理
+        if (error.name === 'NotAllowedError') {
+          console.warn('[风铃音效] 浏览器阻止自动播放，需要用户交互后才能播放');
+          this.pendingPlay = true;
+          this.showAudioTip();
+        } else if (error.name === 'NotSupportedError') {
+          console.error('[风铃音效] 音频格式不支持或文件损坏');
+        } else if (error.name === 'AbortError') {
+          console.warn('[风铃音效] 音频播放被中断');
+        } else {
+          console.error('[风铃音效] 未知播放错误:', error.message);
+          
+          // 尝试重新初始化音频
+          if (this.audioLoadAttempts < this.maxRetryAttempts) {
+            console.log('[风铃音效] 尝试重新初始化音频...');
+            await this.retryAudioInit();
+          }
+        }
       }
+    }
+    
+    /**
+     * 显示音频提示信息
+     */
+    showAudioTip() {
+      // 创建一个临时提示元素
+      const tip = document.createElement('div');
+      tip.textContent = '🎐 点击页面任意位置启用风铃音效';
+      tip.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        font-size: 14px;
+        z-index: 10000;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      `;
+      
+      document.body.appendChild(tip);
+      
+      // 3秒后自动移除提示
+      setTimeout(() => {
+        tip.style.opacity = '0';
+        setTimeout(() => {
+          if (tip.parentNode) {
+            tip.parentNode.removeChild(tip);
+          }
+        }, 300);
+      }, 3000);
     }
 
     /**
