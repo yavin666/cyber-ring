@@ -15,6 +15,9 @@ if (!window.cyberRingInjected) {
     container.id = 'cyber-ring-container';
     container.innerHTML = `
       <div class="cyber-ring">
+        <!-- 连接线1 (约束1到菱形顶点) -->
+        <div class="line1"></div>
+        
         <!-- 菱形风铃主体 -->
         <div class="frame2">
           <div class="union">
@@ -33,14 +36,12 @@ if (!window.cyberRingInjected) {
             </div>
           </div>
           <div class="line22">
-            <div class="line2-control"></div>
             <p class="control-text yes">yes</p>
           </div>
         </div>
         
         <!-- 控制按钮 -->
         <div class="frame3">
-          <div class="line1-control"></div>
           <p class="control-text no">no</p>
         </div>
       </div>
@@ -55,9 +56,9 @@ if (!window.cyberRingInjected) {
    */
   class PhysicsSimulator {
     constructor() {
-      this.pendulum1 = { angle: 0, velocity: 0, damping: 0.98 }; // 菱形
-      this.pendulum2 = { angle: 0, velocity: 0, damping: 0.95 }; // 长方形
-      this.gravity = 0.5;
+      this.pendulum1 = { angle: 0, velocity: 0, damping: 0.985 }; // 菱形 - 更细腻的阻尼
+      this.pendulum2 = { angle: 0, velocity: 0, damping: 0.98 }; // 长方形 - 更细腻的阻尼
+      this.gravity = 0.3; // 降低重力系数，使摆动更柔和
       this.isActive = false;
       this.animationId = null;
     }
@@ -78,19 +79,19 @@ if (!window.cyberRingInjected) {
      * 更新物理状态
      */
     update() {
-      // 更新菱形摆动
-      this.pendulum1.velocity += -this.gravity * Math.sin(this.pendulum1.angle) * 0.02;
+      // 更新菱形摆动 - 降低重力影响系数
+      this.pendulum1.velocity += -this.gravity * Math.sin(this.pendulum1.angle) * 0.015;
       this.pendulum1.angle += this.pendulum1.velocity;
       this.pendulum1.velocity *= this.pendulum1.damping;
 
-      // 更新长方形摆动
-      this.pendulum2.velocity += -this.gravity * Math.sin(this.pendulum2.angle) * 0.03;
+      // 更新长方形摆动 - 降低重力影响系数
+      this.pendulum2.velocity += -this.gravity * Math.sin(this.pendulum2.angle) * 0.02;
       this.pendulum2.angle += this.pendulum2.velocity;
       this.pendulum2.velocity *= this.pendulum2.damping;
 
-      // 限制摆动幅度
-      this.pendulum1.angle = Math.max(-0.3, Math.min(0.3, this.pendulum1.angle));
-      this.pendulum2.angle = Math.max(-0.5, Math.min(0.5, this.pendulum2.angle));
+      // 限制摆动幅度 - 减小摆动范围使动作更自然
+      this.pendulum1.angle = Math.max(-0.2, Math.min(0.2, this.pendulum1.angle));
+      this.pendulum2.angle = Math.max(-0.35, Math.min(0.35, this.pendulum2.angle));
 
       // 应用变换
       this.applyTransforms();
@@ -149,8 +150,8 @@ if (!window.cyberRingInjected) {
      * 重置到静止状态
      */
     reset() {
-      this.pendulum1 = { angle: 0, velocity: 0, damping: 0.98 };
-      this.pendulum2 = { angle: 0, velocity: 0, damping: 0.95 };
+      this.pendulum1 = { angle: 0, velocity: 0, damping: 0.985 };
+      this.pendulum2 = { angle: 0, velocity: 0, damping: 0.98 };
       this.applyTransforms();
     }
 
@@ -233,10 +234,11 @@ if (!window.cyberRingInjected) {
       if (deltaTime > 16) { // 限制更新频率
         const deltaX = e.clientX - this.lastMouseX;
         const speed = Math.abs(deltaX) / deltaTime;
-        const direction = deltaX > 0 ? 1 : -1;
+        // 修正风力方向：鼠标向右移动时风铃向右摆动，向左移动时向左摆动
+        const direction = deltaX > 0 ? -1 : 1;
         
-        // 计算风力
-        const windForce = Math.min(speed * 0.1, 0.05);
+        // 计算风力 - 降低风力强度使摆动更柔和
+        const windForce = Math.min(speed * 0.05, 0.03);
         
         if (windForce > 0.001) {
           this.physics.applyWind(windForce, direction);
@@ -254,10 +256,10 @@ if (!window.cyberRingInjected) {
      */
     smoothReset() {
       const resetAnimation = () => {
-        this.physics.pendulum1.velocity *= 0.9;
-        this.physics.pendulum2.velocity *= 0.9;
-        this.physics.pendulum1.angle *= 0.95;
-        this.physics.pendulum2.angle *= 0.95;
+        this.physics.pendulum1.velocity *= 0.95;
+        this.physics.pendulum2.velocity *= 0.95;
+        this.physics.pendulum1.angle *= 0.98;
+        this.physics.pendulum2.angle *= 0.98;
         
         this.physics.applyTransforms();
         
