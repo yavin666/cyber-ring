@@ -10,7 +10,7 @@
   z-index: 999999;
   pointer-events: auto;
   user-select: none;
-  font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", SimHei, Arial, Helvetica, sans-serif;
+  font-family: "MS Mincho", "MS 明朝", serif;
 }
 
 .cyber-ring {
@@ -101,6 +101,7 @@
   color: #000000;
   font-size: 8px;
   text-align: center;
+  font-family: "MS Mincho", "MS 明朝", serif;
 }
 
 /* 飘带长方形 */
@@ -119,7 +120,7 @@
   top: 0px;
   left: 0;
   width: 39px;
-  height: 150px;
+  height: 140px;
   display: flex;
   align-items: center;
   padding-top: 1px;
@@ -128,7 +129,7 @@
 .rectangle1 {
   display: flex;
   width: 100%;
-  height: 100px;
+  height: 90px;
   align-items: center;
   justify-content: center;
   border: 1px solid #454545;
@@ -144,6 +145,8 @@
   color: #000000;
   font-size: 10px;
   text-align: center;
+  font-family: "MS Mincho", "MS 明朝", serif;
+  writing-mode: vertical-rl;
 }
 
 /* 控制按钮区域 */
@@ -162,7 +165,7 @@
 
 .line22 {
   position: absolute;
-  top: 1px;
+  top: 3px;
   left: 19px;
   width: 17px;
   height: 24px;
@@ -182,10 +185,12 @@
   letter-spacing: 0;
   color: #000000;
   font-size: 8px;
+  font-family: Helvetica, Arial, sans-serif;
 }
 
 .control-text.yes {
-  margin-top: 4px;
+  margin-top: 7px;
+  transform: translateY(2px);
 }
 
 .control-text.no {
@@ -197,8 +202,8 @@
   cursor: pointer;
 }
 
-#cyber-ring-container:hover .cyber-ring {
-  filter: drop-shadow(0 0 5px rgba(69, 69, 69, 0.3));
+#cyber-ring-container:hover .rectangle1 {
+  box-shadow: 0 0 5px rgba(69, 69, 69, 0.3);
 }
 
 /* 响应式调整 */
@@ -243,5 +248,5 @@
   top: 20px !important;
   right: 50px !important;
   z-index: 999999 !important;
-  font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", SimHei, Arial, Helvetica, sans-serif !important;
+  font-family: "MS Mincho", "MS 明朝", serif !important;
 }

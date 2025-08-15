@@ -21,7 +21,7 @@ if (!window.cyberRingInjected) {
         <!-- 菱形风铃主体 -->
         <div class="frame2">
           <div class="union">
-            <p class="text2">风有在吹吗？</p>
+            <p class="text2">風有在吹嗎？</p>
           </div>
         </div>
         
@@ -32,7 +32,7 @@ if (!window.cyberRingInjected) {
         <div class="frame">
           <div class="group4">
             <div class="rectangle1">
-              <p class="text">叮<br />鈴</p>
+              <p class="text">叮鈴——</p>
             </div>
           </div>
           <div class="line22">
@@ -49,6 +49,58 @@ if (!window.cyberRingInjected) {
     
     document.body.appendChild(container);
     return container;
+  }
+
+  /**
+   * 运动状态控制器类 - 控制"yes"/"no"文本显示
+   */
+  class MotionStatusController {
+    constructor() {
+      this.isMoving = false;
+      this.yesElement = null;
+      this.noElement = null;
+      this.init();
+    }
+
+    /**
+     * 初始化DOM元素引用
+     */
+    init() {
+      const container = document.getElementById('cyber-ring-container');
+      if (container) {
+        this.yesElement = container.querySelector('.control-text.yes');
+        this.noElement = container.querySelector('.control-text.no');
+        // 初始状态显示"no"
+        this.updateDisplay(false);
+      }
+    }
+
+    /**
+     * 更新运动状态显示
+     * @param {boolean} isMoving - 是否处于运动状态
+     */
+    updateStatus(isMoving) {
+      if (this.isMoving !== isMoving) {
+        this.isMoving = isMoving;
+        this.updateDisplay(isMoving);
+      }
+    }
+
+    /**
+     * 更新文本显示
+     * @param {boolean} showYes - 是否显示"yes"文本
+     */
+    updateDisplay(showYes) {
+      if (this.yesElement && this.noElement) {
+        if (showYes) {
+          this.yesElement.style.display = 'block';
+          this.noElement.style.display = 'none';
+        } else {
+          this.yesElement.style.display = 'none';
+          this.noElement.style.display = 'block';
+        }
+      }
+    }
   }
 
   /**
@@ -101,6 +153,9 @@ if (!window.cyberRingInjected) {
       this.isRunning = false;
       this.animationId = null;
       this.lastTime = 0;
+      
+      // 运动状态控制器
+      this.motionStatusController = new MotionStatusController();
     }
 
     /**
@@ -165,8 +220,12 @@ if (!window.cyberRingInjected) {
       // 衰减外力
       this.externalForce.magnitude *= this.externalForce.decay;
       
+      // 更新运动状态显示
+      const isMoving = this.shouldContinueAnimation();
+      this.motionStatusController.updateStatus(isMoving);
+      
       // 检查是否继续动画
-      if (this.shouldContinueAnimation()) {
+      if (isMoving) {
         this.animationId = requestAnimationFrame((time) => this.update(time));
       } else {
         this.stop();
@@ -360,6 +419,8 @@ if (!window.cyberRingInjected) {
         cancelAnimationFrame(this.animationId);
         this.animationId = null;
       }
+      // 确保停止时显示"no"
+      this.motionStatusController.updateStatus(false);
     }
   }
 
