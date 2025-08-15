@@ -6,7 +6,7 @@
 #cyber-ring-container {
   position: fixed;
   top: 20px;
-  right: 100px;
+  right: 150px;
   z-index: 999999;
   pointer-events: auto;
   user-select: none;
@@ -80,6 +80,7 @@
   height: 43px;
   transform-origin: 37.5px 0;
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 999;
 }
 
 .union {
@@ -204,7 +205,7 @@
 @media (max-width: 768px) {
   #cyber-ring-container {
     top: 10px;
-    right: 10px;
+    right: 50px;
     transform: scale(0.8);
   }
 }
@@ -240,7 +241,7 @@
   all: initial;
   position: fixed !important;
   top: 20px !important;
-  right: 20px !important;
+  right: 50px !important;
   z-index: 999999 !important;
   font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", SimHei, Arial, Helvetica, sans-serif !important;
 }

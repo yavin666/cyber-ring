@@ -52,159 +52,229 @@ if (!window.cyberRingInjected) {
   }
 
   /**
-   * 物理模拟类 - 处理风铃的摆动效果
-   * 实现真实的物理传导机制，力从底部元素向上逐级传递
+   * 物理模拟器类 - 基于真实单摆物理学
    */
   class PhysicsSimulator {
     constructor() {
-      // 长方形元素（底部，直接受风力影响）
+      // 物理常数
+      this.gravity = 9.81;           // 重力加速度 (m/s²)
+      this.timeScale = 0.016;        // 时间缩放因子，控制动画速度
+      this.maxTimeStep = 0.02;       // 最大时间步长，防止不稳定
+      
+      // 长方形摆锤参数（底部重物）
       this.rectangle = {
-        angle: 0,
-        velocity: 0,
-        angularVelocity: 0,
-        damping: 0.98,
-        mass: 1.0,
-        length: 80, // 连接线长度
-        restoreForce: 0.02 // 回复力系数
+        length: 0.3,                 // 摆长 (m)
+        mass: 2.0,                   // 质量 (kg)
+        damping: 0.98,               // 阻尼系数
+        momentOfInertia: 0.1,        // 转动惯量
+        angle: 0,                    // 当前角度 (rad)
+        angularVelocity: 0,          // 角速度 (rad/s)
+        maxAngle: Math.PI / 3,       // 最大摆动角度限制
+        externalForce: 0             // 外力
       };
       
-      // 菱形元素（中部，通过连接线受长方形影响）
+      // 菱形摆锤参数（顶部轻物）
       this.diamond = {
-        angle: 0,
-        velocity: 0,
-        angularVelocity: 0,
-        damping: 0.96, // 降低阻尼，让运动更流畅
-        mass: 3.0, // 增加质量，模拟更重的菱形
-        length: 43, // 连接线长度
-        restoreForce: 0.008, // 进一步减少回复力，让运动更自然
-        smoothingFactor: 0.85 // 添加平滑因子
+        length: 0.25,                // 摆长 (m)
+        mass: 0.8,                   // 质量 (kg)
+        damping: 0.95,               // 阻尼系数
+        momentOfInertia: 0.05,       // 转动惯量
+        angle: 0,                    // 当前角度 (rad)
+        angularVelocity: 0,          // 角速度 (rad/s)
+        maxAngle: Math.PI / 4,       // 最大摆动角度限制
+        couplingStrength: 0.3,       // 与长方形的耦合强度
+        externalForce: 0             // 外力
       };
       
-      // 连接线元素
-      this.line1 = { angle: 0 }; // 顶部连接线
-      this.line2 = { angle: 0 }; // 中部连接线
+      // 连接线参数
+      this.line1 = { angle: 0 };
+      this.line2 = { angle: 0 };
       
-      // 物理参数
-      this.gravity = 0.2; // 降低重力，让运动更缓慢
-      this.connectionStiffness = 0.025; // 进一步降低连接刚度
-      this.isActive = false;
+      // 外力参数
+      this.externalForce = {
+        magnitude: 0,                // 外力大小
+        direction: 0,                // 外力方向 (-1: 左, 1: 右)
+        decay: 0.95                  // 外力衰减率
+      };
+      
+      // 动画控制
+      this.isRunning = false;
       this.animationId = null;
-      
-      // 平滑运动参数
-      this.previousDiamondAngle = 0;
-      this.angleChangeBuffer = [];
+      this.lastTime = 0;
     }
 
     /**
-     * 应用风力效果
-     * @param {number} windForce - 风力大小
-     * @param {number} windDirection - 风向 (1为右，-1为左)
+     * 应用外力（风力或鼠标交互力）
+     * @param {number} forceMagnitude - 力的大小
+     * @param {number} direction - 力的方向 (1为右，-1为左)
      */
-    applyWind(windForce, windDirection) {
-      // 风力主要作用于底部的长方形元素
-      const adjustedForce = windForce / this.rectangle.mass;
-      this.rectangle.angularVelocity += adjustedForce * windDirection;
+    applyForce(forceMagnitude, direction) {
+      // 设置外力参数
+      this.externalForce.magnitude = forceMagnitude;
+      this.externalForce.direction = direction;
       
-      // 微弱的风力也会直接影响菱形（空气阻力）
-      this.diamond.angularVelocity += adjustedForce * windDirection * 0.1; // 进一步减少直接风力影响
+      // 外力主要作用于底部的长方形摆锤
+      // 使用力矩公式：τ = F × r × sin(θ)
+      const torque = forceMagnitude * this.rectangle.length * direction;
+      
+      // 根据牛顿第二定律计算角加速度：α = τ / I
+      const angularAcceleration = torque / this.rectangle.momentOfInertia;
+      
+      // 应用冲量改变角速度
+      this.rectangle.angularVelocity += angularAcceleration * this.timeScale;
+      
+      // 限制最大角速度，防止过度摆动
+      const maxAngularVelocity = 8.0;
+      this.rectangle.angularVelocity = Math.max(-maxAngularVelocity, 
+        Math.min(maxAngularVelocity, this.rectangle.angularVelocity));
+    }
+    
+    /**
+     * 计算单摆的重力恢复力矩
+     * @param {Object} pendulum - 摆锤对象
+     * @returns {number} 重力力矩
+     */
+    calculateGravityTorque(pendulum) {
+      // 重力恢复力矩：τ = -m × g × L × sin(θ)
+      return -pendulum.mass * this.gravity * pendulum.length * Math.sin(pendulum.angle);
     }
 
     /**
-     * 更新物理状态
+     * 更新物理状态 - 主循环
      */
-    update() {
-      // 更新长方形物理状态（底部元素，直接受重力和风力影响）
-      this.updateRectangle();
+    update(currentTime = performance.now()) {
+      // 计算时间步长
+      const deltaTime = this.lastTime ? (currentTime - this.lastTime) * 0.001 : this.timeScale;
+      this.lastTime = currentTime;
       
-      // 更新菱形物理状态（受长方形运动影响）
-      this.updateDiamond();
+      // 限制时间步长，防止数值不稳定
+      const clampedDeltaTime = Math.min(deltaTime, 0.033); // 最大30fps
+      
+      // 更新长方形摆锤（底部元素）
+      this.updatePendulum(this.rectangle, clampedDeltaTime);
+      
+      // 更新菱形主体（受长方形影响）
+      this.updateCoupledPendulum(this.diamond, this.rectangle, clampedDeltaTime);
       
       // 更新连接线角度
       this.updateConnections();
       
-      // 应用变换
+      // 应用CSS变换
       this.applyTransforms();
-
-      // 检查是否需要继续动画
+      
+      // 衰减外力
+      this.externalForce.magnitude *= this.externalForce.decay;
+      
+      // 检查是否继续动画
       if (this.shouldContinueAnimation()) {
-        this.animationId = requestAnimationFrame(() => this.update());
+        this.animationId = requestAnimationFrame((time) => this.update(time));
       } else {
-        this.isActive = false;
-        this.reset();
+        this.stop();
       }
     }
     
     /**
-     * 更新长方形元素的物理状态
+     * 更新单个摆锤的物理状态
+     * @param {Object} pendulum - 摆锤对象
+     * @param {number} deltaTime - 时间步长
      */
-    updateRectangle() {
-      // 重力作用
-      const gravityForce = -this.gravity * Math.sin(this.rectangle.angle) / this.rectangle.mass;
-      this.rectangle.angularVelocity += gravityForce * this.rectangle.restoreForce;
+    updatePendulum(pendulum, deltaTime) {
+      // 计算重力恢复力矩
+      const gravityTorque = this.calculateGravityTorque(pendulum);
       
-      // 更新角度和速度
-      this.rectangle.angle += this.rectangle.angularVelocity;
-      this.rectangle.angularVelocity *= this.rectangle.damping;
-      
-      // 限制摆动幅度
-      this.rectangle.angle = Math.max(-0.4, Math.min(0.4, this.rectangle.angle));
-    }
-    
-    /**
-     * 更新菱形元素的物理状态
-     */
-    updateDiamond() {
-      // 重力作用（更温和的重力效果）
-      const gravityForce = -this.gravity * Math.sin(this.diamond.angle) / this.diamond.mass;
-      this.diamond.angularVelocity += gravityForce * this.diamond.restoreForce;
-      
-      // 连接约束：长方形的运动通过连接线传递给菱形
-      const connectionForce = (this.rectangle.angle - this.diamond.angle) * this.connectionStiffness;
-      // 考虑质量差异，重的菱形对传导力响应更小
-      const dampedConnectionForce = connectionForce / this.diamond.mass * 0.7; // 进一步减少传导力
-      this.diamond.angularVelocity += dampedConnectionForce;
-      
-      // 平滑角速度变化
-      this.diamond.angularVelocity *= this.diamond.damping;
-      
-      // 计算新角度
-      let newAngle = this.diamond.angle + this.diamond.angularVelocity;
-      
-      // 角度平滑处理
-      const angleDiff = newAngle - this.previousDiamondAngle;
-      if (Math.abs(angleDiff) > 0.01) {
-        // 如果角度变化过大，进行平滑处理
-        newAngle = this.previousDiamondAngle + angleDiff * this.diamond.smoothingFactor;
+      // 计算外力力矩（仅对长方形摆锤）
+      let externalTorque = 0;
+      if (pendulum === this.rectangle && this.externalForce.magnitude > 0) {
+        externalTorque = this.externalForce.magnitude * pendulum.length * this.externalForce.direction;
       }
+      
+      // 计算总力矩
+      const totalTorque = gravityTorque + externalTorque;
+      
+      // 根据牛顿第二定律计算角加速度：α = τ / I
+      const angularAcceleration = totalTorque / pendulum.momentOfInertia;
+      
+      // 更新角速度（考虑阻尼）
+      pendulum.angularVelocity += angularAcceleration * deltaTime;
+      pendulum.angularVelocity *= pendulum.damping;
       
       // 更新角度
-      this.diamond.angle = newAngle;
-      this.previousDiamondAngle = this.diamond.angle;
+      pendulum.angle += pendulum.angularVelocity * deltaTime;
       
-      // 限制摆动幅度（菱形运动幅度更小）
-      this.diamond.angle = Math.max(-0.12, Math.min(0.12, this.diamond.angle));
+      // 限制摆动幅度
+      pendulum.angle = Math.max(-pendulum.maxAngle, Math.min(pendulum.maxAngle, pendulum.angle));
     }
+    
+    /**
+     * 更新耦合摆锤的物理状态
+     * @param {Object} pendulum - 当前摆锤
+     * @param {Object} drivingPendulum - 驱动摆锤
+     * @param {number} deltaTime - 时间步长
+     */
+    updateCoupledPendulum(pendulum, drivingPendulum, deltaTime) {
+      // 计算重力恢复力矩
+      const gravityTorque = this.calculateGravityTorque(pendulum);
+      
+      // 计算耦合力矩（来自驱动摆锤的影响）
+      const angleDifference = drivingPendulum.angle - pendulum.angle;
+      const velocityDifference = drivingPendulum.angularVelocity - pendulum.angularVelocity;
+      
+      // 弹性耦合力矩（类似弹簧）
+      const couplingTorque = pendulum.couplingStrength * angleDifference * pendulum.mass * this.gravity * pendulum.length;
+      
+      // 阻尼耦合力矩（传递动量）
+      const dampingCouplingTorque = 0.05 * velocityDifference * pendulum.momentOfInertia;
+      
+      // 计算总力矩
+      const totalTorque = gravityTorque + couplingTorque + dampingCouplingTorque;
+      
+      // 根据牛顿第二定律计算角加速度
+      const angularAcceleration = totalTorque / pendulum.momentOfInertia;
+      
+      // 更新角速度（考虑阻尼）
+      pendulum.angularVelocity += angularAcceleration * deltaTime;
+      pendulum.angularVelocity *= pendulum.damping;
+      
+      // 更新角度
+      pendulum.angle += pendulum.angularVelocity * deltaTime;
+      
+      // 限制摆动幅度
+      pendulum.angle = Math.max(-pendulum.maxAngle, Math.min(pendulum.maxAngle, pendulum.angle));
+    }
+    
+
     
     /**
      * 更新连接线角度
      */
     updateConnections() {
-      // line1 平滑跟随菱形运动
-      this.line1.angle = this.diamond.angle * 0.9;
+      // 顶部连接线跟随菱形运动
+      this.line1.angle = this.diamond.angle * 0.8;
       
-      // line2 在菱形和长方形之间更平滑的插值
-      this.line2.angle = this.diamond.angle * 0.6 + this.rectangle.angle * 0.4;
+      // 中部连接线在菱形和长方形之间插值
+      this.line2.angle = (this.diamond.angle + this.rectangle.angle) * 0.5;
     }
     
     /**
      * 检查是否应该继续动画
      */
     shouldContinueAnimation() {
-      const threshold = 0.001;
-      return Math.abs(this.rectangle.angularVelocity) > threshold ||
-             Math.abs(this.diamond.angularVelocity) > threshold ||
-             Math.abs(this.rectangle.angle) > threshold ||
-             Math.abs(this.diamond.angle) > threshold;
+      const velocityThreshold = 0.01; // 角速度阈值
+      const angleThreshold = 0.001;   // 角度阈值
+      const forceThreshold = 0.001;   // 外力阈值
+      
+      // 如果还有外力作用，继续动画
+      if (this.externalForce.magnitude > forceThreshold) {
+        return true;
+      }
+      
+      // 检查是否还有明显的运动
+      const hasMotion = Math.abs(this.rectangle.angularVelocity) > velocityThreshold ||
+                       Math.abs(this.diamond.angularVelocity) > velocityThreshold ||
+                       Math.abs(this.rectangle.angle) > angleThreshold ||
+                       Math.abs(this.diamond.angle) > angleThreshold;
+      
+      return hasMotion;
     }
 
     /**
@@ -213,81 +283,83 @@ if (!window.cyberRingInjected) {
     applyTransforms() {
       const container = document.getElementById('cyber-ring-container');
       if (!container) return;
-
-      const frame2 = container.querySelector('.frame2'); // 菱形
-      const frame = container.querySelector('.frame');   // 长方形
-      const line1 = container.querySelector('.line1');   // 顶部连接线
-      const line2 = container.querySelector('.line2');   // 中部连接线
-      const frame3 = container.querySelector('.frame3'); // 控制按钮
-
-      // 菱形跟随自身角度
-      if (frame2) {
-        frame2.style.transform = `rotate(${this.diamond.angle}rad)`;
+      
+      // 获取DOM元素
+      const rectangleElement = container.querySelector('.frame');
+      const diamondElement = container.querySelector('.frame2');
+      const line1Element = container.querySelector('.line1');
+      const line2Element = container.querySelector('.line2');
+      
+      // 应用长方形变换
+      if (rectangleElement) {
+        const rectTransform = `rotate(${this.rectangle.angle}rad)`;
+        rectangleElement.style.transform = rectTransform;
       }
       
-      // 长方形跟随自身角度
-      if (frame) {
-        frame.style.transform = `rotate(${this.rectangle.angle}rad)`;
+      // 应用菱形变换
+      if (diamondElement) {
+        const diamondTransform = `rotate(${this.diamond.angle}rad)`;
+        diamondElement.style.transform = diamondTransform;
       }
       
-      // 顶部连接线跟随菱形
-      if (line1) {
-        line1.style.transform = `rotate(${this.line1.angle}rad)`;
+      // 应用连接线变换
+      if (line1Element) {
+        const line1Transform = `rotate(${this.line1.angle}rad)`;
+        line1Element.style.transform = line1Transform;
       }
       
-      // 中部连接线在菱形和长方形之间
-      if (line2) {
-        line2.style.transform = `rotate(${this.line2.angle}rad)`;
-      }
-      
-      // 控制按钮跟随菱形（保持相对位置）
-      if (frame3) {
-        frame3.style.transform = `rotate(${this.diamond.angle}rad)`;
+      if (line2Element) {
+        const line2Transform = `rotate(${this.line2.angle}rad)`;
+        line2Element.style.transform = line2Transform;
       }
     }
 
     /**
-     * 开始物理模拟
+     * 启动物理模拟
      */
     start() {
-      if (!this.isActive) {
-        this.isActive = true;
+      if (!this.isRunning) {
+        this.isRunning = true;
+        this.lastTime = performance.now();
         this.update();
       }
     }
-
+    
     /**
-     * 重置到静止状态
+     * 重置物理状态
      */
     reset() {
       // 重置长方形状态
       this.rectangle.angle = 0;
       this.rectangle.angularVelocity = 0;
+      this.rectangle.externalForce = 0;
       
       // 重置菱形状态
       this.diamond.angle = 0;
       this.diamond.angularVelocity = 0;
+      this.diamond.externalForce = 0;
       
-      // 重置连接线
+      // 重置连接线状态
       this.line1.angle = 0;
       this.line2.angle = 0;
       
-      // 重置平滑参数
-      this.previousDiamondAngle = 0;
-      this.angleChangeBuffer = [];
+      // 重置外力
+      this.externalForce.magnitude = 0;
+      this.externalForce.direction = 0;
       
+      // 应用重置后的变换
       this.applyTransforms();
     }
-
+    
     /**
-     * 停止动画
+     * 停止物理模拟
      */
     stop() {
+      this.isRunning = false;
       if (this.animationId) {
         cancelAnimationFrame(this.animationId);
         this.animationId = null;
       }
-      this.isActive = false;
     }
   }
 
@@ -295,110 +367,106 @@ if (!window.cyberRingInjected) {
    * 鼠标交互处理类
    */
   class MouseInteraction {
-    constructor(physics) {
-      this.physics = physics;
-      this.lastMouseX = 0;
-      this.lastMouseY = 0;
-      this.lastTime = 0;
-      this.isHovering = false;
-      this.leaveTimeout = null;
+    constructor(physicsSimulator) {
+      this.physics = physicsSimulator;
+      this.isMouseOver = false;
+      this.lastX = undefined;
+      this.lastDirection = 0;
+      this.init();
     }
-
+    
     /**
      * 初始化事件监听
      */
     init() {
       const container = document.getElementById('cyber-ring-container');
       if (!container) return;
-
-      container.addEventListener('mouseenter', (e) => this.handleMouseEnter(e));
-      container.addEventListener('mouseleave', (e) => this.handleMouseLeave(e));
-      container.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    }
-
-    /**
-     * 处理鼠标进入
-     */
-    handleMouseEnter(e) {
-      this.isHovering = true;
-      this.lastMouseX = e.clientX;
-      this.lastMouseY = e.clientY;
-      this.lastTime = Date.now();
       
-      if (this.leaveTimeout) {
-        clearTimeout(this.leaveTimeout);
-        this.leaveTimeout = null;
-      }
+      container.addEventListener('mouseenter', this.handleMouseEnter.bind(this));
+      container.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+      container.addEventListener('mousemove', this.handleMouseMove.bind(this));
     }
-
+    
     /**
-     * 处理鼠标离开
+     * 鼠标进入处理
      */
-    handleMouseLeave(e) {
-      this.isHovering = false;
+    handleMouseEnter() {
+      this.isMouseOver = true;
+      this.physics.start();
+    }
+    
+    /**
+     * 鼠标离开处理
+     */
+    handleMouseLeave() {
+      this.isMouseOver = false;
+      this.lastX = undefined;
+      // 平滑重置到静止状态
+      this.smoothReset();
+    }
+    
+    /**
+     * 鼠标移动处理
+     */
+    handleMouseMove(event) {
+      if (!this.isMouseOver) return;
       
-      // 延迟恢复静止状态
-      this.leaveTimeout = setTimeout(() => {
-        if (!this.isHovering) {
-          this.physics.stop();
-          this.smoothReset();
+      const container = event.currentTarget;
+      const rect = container.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const currentX = event.clientX;
+      
+      // 计算鼠标相对于中心的位置
+      const deltaX = currentX - centerX;
+      
+      // 计算移动方向和速度
+      if (this.lastX !== undefined) {
+        const movementX = currentX - this.lastX;
+        
+        // 只有当移动距离超过阈值时才更新方向
+        if (Math.abs(movementX) > 2) {
+          // 计算风力方向：修正方向映射，确保鼠标向右移动时风铃向右摆动
+          const direction = -Math.sign(movementX);
+          this.lastDirection = direction;
+          
+          // 计算风力强度（大幅增强风力效果）
+          const speed = Math.abs(movementX);
+          const distance = Math.abs(deltaX);
+          const forceMagnitude = Math.min(speed * 0.8 + distance * 0.05, 5.0);
+          
+          // 应用外力到物理系统
+          this.physics.applyForce(forceMagnitude, direction);
+        } else if (Math.abs(deltaX) > 10) {
+          // 鼠标静止但偏离中心时，施加更强的恢复力
+          const direction = -Math.sign(deltaX);
+          const distance = Math.abs(deltaX);
+          const forceMagnitude = Math.min(distance * 0.02, 1.0);
+          
+          this.physics.applyForce(forceMagnitude, direction);
         }
-      }, 1000);
-    }
-
-    /**
-     * 处理鼠标移动
-     */
-    handleMouseMove(e) {
-      if (!this.isHovering) return;
-
-      const currentTime = Date.now();
-      const deltaTime = currentTime - this.lastTime;
-      
-      if (deltaTime > 16) { // 限制更新频率
-        const deltaX = e.clientX - this.lastMouseX;
-        const speed = Math.abs(deltaX) / deltaTime;
-        // 修正风力方向：鼠标向右移动时风铃向右摆动，向左移动时向左摆动
-        const direction = deltaX > 0 ? -1 : 1;
-        
-        // 计算风力 - 降低风力强度使摆动更柔和
-        const windForce = Math.min(speed * 0.05, 0.03);
-        
-        if (windForce > 0.001) {
-          this.physics.applyWind(windForce, direction);
-          this.physics.start();
-        }
-        
-        this.lastMouseX = e.clientX;
-        this.lastMouseY = e.clientY;
-        this.lastTime = currentTime;
       }
+      
+      this.lastX = currentX;
     }
-
+    
     /**
      * 平滑重置到静止状态
      */
     smoothReset() {
-      const resetStep = () => {
-        // 逐渐减小角度和角速度
-        this.physics.rectangle.angle *= 0.9;
-        this.physics.rectangle.angularVelocity *= 0.9;
-        this.physics.diamond.angle *= 0.9;
-        this.physics.diamond.angularVelocity *= 0.9;
+      // 逐渐减少外力，让摆动自然衰减
+      const resetAnimation = () => {
+        if (this.isMouseOver) return; // 如果鼠标重新进入，停止重置
         
-        // 更新连接线角度
-        this.physics.updateConnections();
-        this.physics.applyTransforms();
-
-        // 如果还有明显的运动，继续重置
-        if (Math.abs(this.physics.rectangle.angle) > 0.01 || Math.abs(this.physics.rectangle.angularVelocity) > 0.01 ||
-            Math.abs(this.physics.diamond.angle) > 0.01 || Math.abs(this.physics.diamond.angularVelocity) > 0.01) {
-          requestAnimationFrame(resetStep);
-        } else {
-          this.physics.reset();
-        }
+        // 让物理系统自然衰减，不需要人为干预
+        // 在一段时间后如果仍然静止则停止模拟
+        setTimeout(() => {
+          if (!this.isMouseOver && !this.physics.shouldContinueAnimation()) {
+            this.physics.stop();
+          }
+        }, 2000);
       };
-      resetStep();
+      
+      requestAnimationFrame(resetAnimation);
     }
   }
 
@@ -412,7 +480,6 @@ if (!window.cyberRingInjected) {
     
     // 初始化鼠标交互
     const mouseInteraction = new MouseInteraction(physics);
-    mouseInteraction.init();
     
     console.log('赛博风铃插件已加载');
   }
