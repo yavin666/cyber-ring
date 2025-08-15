@@ -59,6 +59,12 @@ if (!window.cyberRingInjected) {
       this.isMoving = false;
       this.yesElement = null;
       this.noElement = null;
+      
+      // 创建音频对象
+      this.audio = new Audio(chrome.runtime.getURL('ring.mp3'));
+      this.audio.volume = 0.5; // 设置音量为50%
+      this.audio.preload = 'auto'; // 预加载音频
+      
       this.init();
     }
 
@@ -81,8 +87,34 @@ if (!window.cyberRingInjected) {
      */
     updateStatus(isMoving) {
       if (this.isMoving !== isMoving) {
+        // 检测到运动状态从静止变为运动时播放音效
+        if (!this.isMoving && isMoving) {
+          this.playRingSound();
+        }
+        
         this.isMoving = isMoving;
         this.updateDisplay(isMoving);
+      }
+    }
+    
+    /**
+     * 播放风铃音效
+     */
+    playRingSound() {
+      try {
+        // 重置音频到开始位置
+        this.audio.currentTime = 0;
+        // 播放音效
+        const playPromise = this.audio.play();
+        
+        // 处理播放Promise（现代浏览器要求）
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.warn('风铃音效播放失败:', error);
+          });
+        }
+      } catch (error) {
+        console.warn('风铃音效播放出错:', error);
       }
     }
 

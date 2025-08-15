@@ -13,5 +13,11 @@
       "css": ["content.css"],
       "run_at": "document_end"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["ring.mp3"],
+      "matches": ["<all_urls>"]
+    }
   ]
 }
