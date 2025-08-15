@@ -63,13 +63,8 @@ if (!window.cyberRingInjected) {
       // 音频相关属性
       this.audio = null;
       this.audioLoaded = false;
-      this.audioLoadAttempts = 0;
-      this.maxRetryAttempts = 3;
-      this.retryDelay = 1000; // 1秒重试延迟
-      this.audioUnlocked = false; // 音频上下文是否已解锁
-      this.pendingPlay = false; // 是否有待播放的音效
-      this.userInteracted = false; // 用户是否已交互
-      this.audioPermissionGranted = null; // 音频权限状态
+      this.userInteracted = false;
+      this.pendingPlay = false;
       
       this.init();
     }
@@ -86,185 +81,40 @@ if (!window.cyberRingInjected) {
         this.updateDisplay(false);
       }
       
-
-      
-      // 设置用户交互监听器来解锁音频
-      this.setupUserInteractionListeners();
-      
-      // 异步初始化音频
+      // 初始化音频
       this.initAudio();
+      
+      // 设置用户交互监听器
+      this.setupUserInteractionListeners();
     }
     
     /**
-     * 异步初始化音频文件
+     * 初始化音频文件
      */
-    async initAudio() {
+    initAudio() {
       try {
-        console.log('[风铃音效] 开始初始化音频...');
-        
         // 获取音频文件URL
         const audioUrl = chrome.runtime.getURL('ring.mp3');
-        console.log('[风铃音效] 音频文件URL:', audioUrl);
-        
-        // 验证音频文件是否可访问
-        await this.validateAudioFile(audioUrl);
         
         // 创建音频对象
-        this.audio = new Audio();
+        this.audio = new Audio(audioUrl);
         
         // 设置音频属性
-        this.audio.volume = 0.3; // 降低音量避免过响
-        this.audio.preload = 'metadata'; // 改为metadata，减少初始加载
-        this.audio.crossOrigin = 'anonymous'; // 设置跨域属性
+        this.audio.volume = 0.3;
+        this.audio.preload = 'auto';
         
-        // 添加音频事件监听器
-        this.setupAudioEventListeners();
+        // 简单的加载完成监听
+        this.audio.addEventListener('canplaythrough', () => {
+          this.audioLoaded = true;
+        });
         
-        // 设置音频源
-        this.audio.src = audioUrl;
-        
-        // 等待音频元数据加载完成
-        await this.waitForAudioMetadata();
-        
-        console.log('[风铃音效] 音频初始化成功');
+        this.audio.addEventListener('error', () => {
+          console.error('[风铃音效] 音频加载失败');
+          this.audioLoaded = false;
+        });
         
       } catch (error) {
         console.error('[风铃音效] 音频初始化失败:', error);
-        await this.retryAudioInit();
-      }
-    }
-    
-    /**
-     * 验证音频文件是否可访问
-     * @param {string} audioUrl - 音频文件URL
-     */
-    async validateAudioFile(audioUrl) {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('HEAD', audioUrl, true);
-        xhr.onload = () => {
-          if (xhr.status === 200) {
-            console.log('[风铃音效] 音频文件验证成功');
-            resolve();
-          } else {
-            reject(new Error(`音频文件访问失败，状态码: ${xhr.status}`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('音频文件网络请求失败'));
-        xhr.ontimeout = () => reject(new Error('音频文件请求超时'));
-        xhr.timeout = 5000; // 5秒超时
-        xhr.send();
-      });
-    }
-    
-    /**
-     * 设置音频事件监听器
-     */
-    setupAudioEventListeners() {
-      this.audio.addEventListener('loadstart', () => {
-        console.log('[风铃音效] 开始加载音频数据');
-      });
-      
-      this.audio.addEventListener('loadeddata', () => {
-        console.log('[风铃音效] 音频数据加载完成');
-      });
-      
-      this.audio.addEventListener('canplaythrough', () => {
-        console.log('[风铃音效] 音频可以完整播放');
-        this.audioLoaded = true;
-      });
-      
-      this.audio.addEventListener('error', (e) => {
-        console.error('[风铃音效] 音频加载错误:', e.target.error);
-        this.audioLoaded = false;
-      });
-      
-      this.audio.addEventListener('stalled', () => {
-        console.warn('[风铃音效] 音频加载停滞');
-      });
-    }
-    
-    /**
-     * 等待音频元数据加载完成
-     */
-    async waitForAudioMetadata() {
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('音频元数据加载超时'));
-        }, 5000); // 5秒超时
-        
-        const onLoadedMetadata = () => {
-          clearTimeout(timeout);
-          this.audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-          this.audio.removeEventListener('error', onError);
-          this.audioLoaded = true;
-          console.log('[风铃音效] 音频元数据加载完成，时长:', this.audio.duration);
-          resolve();
-        };
-        
-        const onError = (e) => {
-          clearTimeout(timeout);
-          this.audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-          this.audio.removeEventListener('error', onError);
-          const errorMsg = this.getAudioErrorMessage(this.audio.error);
-          reject(new Error(`音频加载错误: ${errorMsg}`));
-        };
-        
-        this.audio.addEventListener('loadedmetadata', onLoadedMetadata);
-        this.audio.addEventListener('error', onError);
-        
-        // 如果已经加载了元数据，直接resolve
-        if (this.audio.readyState >= 1) {
-          onLoadedMetadata();
-        }
-      });
-    }
-    
-    /**
-     * 等待音频数据加载完成（用于播放前检查）
-     */
-    async waitForAudioLoad() {
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('音频数据加载超时'));
-        }, 3000); // 3秒超时
-        
-        const checkLoad = () => {
-          if (this.audio.readyState >= 2) { // HAVE_CURRENT_DATA
-            clearTimeout(timeout);
-            resolve();
-          } else if (this.audio.error) {
-            clearTimeout(timeout);
-            const errorMsg = this.getAudioErrorMessage(this.audio.error);
-            reject(new Error(`音频解码错误: ${errorMsg}`));
-          } else {
-            setTimeout(checkLoad, 100);
-          }
-        };
-        
-        checkLoad();
-      });
-    }
-    
-    /**
-     * 获取音频错误信息
-     * @param {MediaError} error - 音频错误对象
-     * @returns {string} 错误描述
-     */
-    getAudioErrorMessage(error) {
-      if (!error) return '未知错误';
-      
-      switch (error.code) {
-        case MediaError.MEDIA_ERR_ABORTED:
-          return '音频加载被中止';
-        case MediaError.MEDIA_ERR_NETWORK:
-          return '网络错误导致音频加载失败';
-        case MediaError.MEDIA_ERR_DECODE:
-          return '音频解码失败，可能文件损坏';
-        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-          return '音频格式不支持或文件不存在';
-        default:
-          return `音频错误 (代码: ${error.code})`;
       }
     }
     
@@ -274,31 +124,17 @@ if (!window.cyberRingInjected) {
     
 
     
-    /**
-     * 重试音频初始化
-     */
-    async retryAudioInit() {
-      this.audioLoadAttempts++;
-      
-      if (this.audioLoadAttempts < this.maxRetryAttempts) {
-        console.log(`[风铃音效] 第${this.audioLoadAttempts}次重试音频初始化...`);
-        
-        // 等待重试延迟
-        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
-        
-        // 清理之前的音频对象
-        if (this.audio) {
-          this.audio.src = '';
-          this.audio = null;
-        }
-        
-        // 重新初始化
-        await this.initAudio();
-      } else {
-        console.error('[风铃音效] 音频初始化重试次数已达上限，放弃加载');
-        this.audioLoaded = false;
-      }
-    }
+
+    
+
+    
+
+    
+
+    
+
+    
+
 
     /**
      * 更新运动状态显示
@@ -317,25 +153,18 @@ if (!window.cyberRingInjected) {
     }
     
     /**
-     * 设置用户交互监听器来解锁音频上下文
+     * 设置用户交互监听器
      */
     setupUserInteractionListeners() {
-      const unlockAudio = async () => {
+      const unlockAudio = () => {
         if (!this.userInteracted) {
           this.userInteracted = true;
-          console.log('[风铃音效] 检测到用户交互，尝试解锁音频上下文');
+          console.log('[风铃音效] 检测到用户交互');
           
-          try {
-            // 尝试解锁音频上下文
-            await this.unlockAudioContext();
-            
-            // 如果有待播放的音效，现在播放
-            if (this.pendingPlay) {
-              this.pendingPlay = false;
-              await this.playRingSound();
-            }
-          } catch (error) {
-            console.error('[风铃音效] 音频上下文解锁失败:', error);
+          // 如果有待播放的音效，现在播放
+          if (this.pendingPlay) {
+            this.pendingPlay = false;
+            this.playRingSound();
           }
         }
       };
@@ -345,42 +174,9 @@ if (!window.cyberRingInjected) {
       events.forEach(event => {
         document.addEventListener(event, unlockAudio, { once: true, passive: true });
       });
-      
-      // 5秒后移除监听器（避免内存泄漏）
-      setTimeout(() => {
-        events.forEach(event => {
-          document.removeEventListener(event, unlockAudio);
-        });
-      }, 5000);
     }
     
-    /**
-     * 解锁音频上下文
-     */
-    async unlockAudioContext() {
-      try {
-        if (this.audio) {
-          // 尝试播放一个静音的短音频来解锁上下文
-          const originalVolume = this.audio.volume;
-          this.audio.volume = 0;
-          this.audio.currentTime = 0;
-          
-          const playPromise = this.audio.play();
-          if (playPromise !== undefined) {
-            await playPromise;
-            this.audio.pause();
-            this.audio.currentTime = 0;
-            this.audio.volume = originalVolume;
-            this.audioUnlocked = true;
-            console.log('[风铃音效] 音频上下文解锁成功');
-          }
-        }
-      } catch (error) {
-        console.warn('[风铃音效] 音频上下文解锁失败:', error);
-        // 即使解锁失败，也标记为已尝试
-        this.audioUnlocked = true;
-      }
-    }
+
     
     /**
      * 播放风铃音效
@@ -389,13 +185,8 @@ if (!window.cyberRingInjected) {
       try {
         // 检查音频是否已加载
         if (!this.audioLoaded || !this.audio) {
-          console.warn('[风铃音效] 音频未加载，尝试重新初始化...');
-          await this.initAudio();
-          
-          if (!this.audioLoaded || !this.audio) {
-            console.error('[风铃音效] 音频仍未加载，跳过播放');
-            return;
-          }
+          console.warn('[风铃音效] 音频未加载，跳过播放');
+          return;
         }
         
         // 检查是否需要用户交互来解锁音频
@@ -404,17 +195,6 @@ if (!window.cyberRingInjected) {
           this.pendingPlay = true;
           this.showAudioTip();
           return;
-        }
-        
-        // 检查音频状态
-        if (this.audio.readyState < 2) {
-          console.warn('[风铃音效] 音频数据不足，等待加载...');
-          try {
-            await this.waitForAudioLoad();
-          } catch (loadError) {
-            console.error('[风铃音效] 音频加载失败:', loadError);
-            return;
-          }
         }
         
         // 重置音频到开始位置
@@ -434,23 +214,11 @@ if (!window.cyberRingInjected) {
       } catch (error) {
         console.error('[风铃音效] 播放失败:', error);
         
-        // 详细的错误处理
+        // 简化的错误处理
         if (error.name === 'NotAllowedError') {
           console.warn('[风铃音效] 浏览器阻止自动播放，需要用户交互后才能播放');
           this.pendingPlay = true;
           this.showAudioTip();
-        } else if (error.name === 'NotSupportedError') {
-          console.error('[风铃音效] 音频格式不支持或文件损坏');
-        } else if (error.name === 'AbortError') {
-          console.warn('[风铃音效] 音频播放被中断');
-        } else {
-          console.error('[风铃音效] 未知播放错误:', error.message);
-          
-          // 尝试重新初始化音频
-          if (this.audioLoadAttempts < this.maxRetryAttempts) {
-            console.log('[风铃音效] 尝试重新初始化音频...');
-            await this.retryAudioInit();
-          }
         }
       }
     }
