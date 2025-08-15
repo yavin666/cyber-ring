@@ -69,7 +69,6 @@ if (!window.cyberRingInjected) {
       this.audioUnlocked = false; // 音频上下文是否已解锁
       this.pendingPlay = false; // 是否有待播放的音效
       this.userInteracted = false; // 用户是否已交互
-      this.silentMode = false; // 静音模式
       this.audioPermissionGranted = null; // 音频权限状态
       
       this.init();
@@ -87,8 +86,7 @@ if (!window.cyberRingInjected) {
         this.updateDisplay(false);
       }
       
-      // 检查音频权限
-      this.checkAudioPermissions();
+
       
       // 设置用户交互监听器来解锁音频
       this.setupUserInteractionListeners();
@@ -270,78 +268,11 @@ if (!window.cyberRingInjected) {
       }
     }
     
-    /**
-     * 检查音频权限
-     */
-    async checkAudioPermissions() {
-      try {
-        // 检查浏览器是否支持权限API
-        if ('permissions' in navigator) {
-          // 检查音频权限（虽然大多数浏览器不需要显式权限）
-          const result = await navigator.permissions.query({ name: 'microphone' });
-          console.log('[风铃音效] 音频权限状态:', result.state);
-          
-          if (result.state === 'denied') {
-            console.warn('[风铃音效] 音频权限被拒绝，启用静音模式');
-            this.silentMode = true;
-            this.audioPermissionGranted = false;
-          } else {
-            this.audioPermissionGranted = true;
-          }
-        } else {
-          console.log('[风铃音效] 浏览器不支持权限API，假设权限已授予');
-          this.audioPermissionGranted = true;
-        }
-      } catch (error) {
-        console.warn('[风铃音效] 权限检查失败:', error);
-        // 权限检查失败时，假设权限已授予
-        this.audioPermissionGranted = true;
-      }
-    }
+
     
-    /**
-     * 启用静音模式
-     */
-    enableSilentMode() {
-      this.silentMode = true;
-      console.log('[风铃音效] 已启用静音模式');
-      
-      // 显示静音模式提示
-      this.showSilentModeNotification();
-    }
+
     
-    /**
-     * 显示静音模式通知
-     */
-    showSilentModeNotification() {
-      const notification = document.createElement('div');
-      notification.textContent = '🔇 风铃音效已静音';
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        background: rgba(255, 165, 0, 0.9);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 4px;
-        font-size: 12px;
-        z-index: 10000;
-        pointer-events: none;
-        transition: opacity 0.3s ease;
-      `;
-      
-      document.body.appendChild(notification);
-      
-      // 2秒后自动移除通知
-      setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => {
-          if (notification.parentNode) {
-            notification.parentNode.removeChild(notification);
-          }
-        }, 300);
-      }, 2000);
-    }
+
     
     /**
      * 重试音频初始化
