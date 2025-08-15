@@ -53,14 +53,46 @@ if (!window.cyberRingInjected) {
 
   /**
    * 物理模拟类 - 处理风铃的摆动效果
+   * 实现真实的物理传导机制，力从底部元素向上逐级传递
    */
   class PhysicsSimulator {
     constructor() {
-      this.pendulum1 = { angle: 0, velocity: 0, damping: 0.985 }; // 菱形 - 更细腻的阻尼
-      this.pendulum2 = { angle: 0, velocity: 0, damping: 0.98 }; // 长方形 - 更细腻的阻尼
-      this.gravity = 0.3; // 降低重力系数，使摆动更柔和
+      // 长方形元素（底部，直接受风力影响）
+      this.rectangle = {
+        angle: 0,
+        velocity: 0,
+        angularVelocity: 0,
+        damping: 0.98,
+        mass: 1.0,
+        length: 80, // 连接线长度
+        restoreForce: 0.02 // 回复力系数
+      };
+      
+      // 菱形元素（中部，通过连接线受长方形影响）
+      this.diamond = {
+        angle: 0,
+        velocity: 0,
+        angularVelocity: 0,
+        damping: 0.96, // 降低阻尼，让运动更流畅
+        mass: 3.0, // 增加质量，模拟更重的菱形
+        length: 43, // 连接线长度
+        restoreForce: 0.008, // 进一步减少回复力，让运动更自然
+        smoothingFactor: 0.85 // 添加平滑因子
+      };
+      
+      // 连接线元素
+      this.line1 = { angle: 0 }; // 顶部连接线
+      this.line2 = { angle: 0 }; // 中部连接线
+      
+      // 物理参数
+      this.gravity = 0.2; // 降低重力，让运动更缓慢
+      this.connectionStiffness = 0.025; // 进一步降低连接刚度
       this.isActive = false;
       this.animationId = null;
+      
+      // 平滑运动参数
+      this.previousDiamondAngle = 0;
+      this.angleChangeBuffer = [];
     }
 
     /**
@@ -69,41 +101,110 @@ if (!window.cyberRingInjected) {
      * @param {number} windDirection - 风向 (1为右，-1为左)
      */
     applyWind(windForce, windDirection) {
-      // 菱形重量大，受风力影响小
-      this.pendulum1.velocity += windForce * windDirection * 0.3;
-      // 长方形轻，受风力影响大
-      this.pendulum2.velocity += windForce * windDirection * 0.8;
+      // 风力主要作用于底部的长方形元素
+      const adjustedForce = windForce / this.rectangle.mass;
+      this.rectangle.angularVelocity += adjustedForce * windDirection;
+      
+      // 微弱的风力也会直接影响菱形（空气阻力）
+      this.diamond.angularVelocity += adjustedForce * windDirection * 0.1; // 进一步减少直接风力影响
     }
 
     /**
      * 更新物理状态
      */
     update() {
-      // 更新菱形摆动 - 降低重力影响系数
-      this.pendulum1.velocity += -this.gravity * Math.sin(this.pendulum1.angle) * 0.015;
-      this.pendulum1.angle += this.pendulum1.velocity;
-      this.pendulum1.velocity *= this.pendulum1.damping;
-
-      // 更新长方形摆动 - 降低重力影响系数
-      this.pendulum2.velocity += -this.gravity * Math.sin(this.pendulum2.angle) * 0.02;
-      this.pendulum2.angle += this.pendulum2.velocity;
-      this.pendulum2.velocity *= this.pendulum2.damping;
-
-      // 限制摆动幅度 - 减小摆动范围使动作更自然
-      this.pendulum1.angle = Math.max(-0.2, Math.min(0.2, this.pendulum1.angle));
-      this.pendulum2.angle = Math.max(-0.35, Math.min(0.35, this.pendulum2.angle));
-
+      // 更新长方形物理状态（底部元素，直接受重力和风力影响）
+      this.updateRectangle();
+      
+      // 更新菱形物理状态（受长方形运动影响）
+      this.updateDiamond();
+      
+      // 更新连接线角度
+      this.updateConnections();
+      
       // 应用变换
       this.applyTransforms();
 
       // 检查是否需要继续动画
-      if (Math.abs(this.pendulum1.velocity) > 0.001 || Math.abs(this.pendulum2.velocity) > 0.001 ||
-          Math.abs(this.pendulum1.angle) > 0.001 || Math.abs(this.pendulum2.angle) > 0.001) {
+      if (this.shouldContinueAnimation()) {
         this.animationId = requestAnimationFrame(() => this.update());
       } else {
         this.isActive = false;
         this.reset();
       }
+    }
+    
+    /**
+     * 更新长方形元素的物理状态
+     */
+    updateRectangle() {
+      // 重力作用
+      const gravityForce = -this.gravity * Math.sin(this.rectangle.angle) / this.rectangle.mass;
+      this.rectangle.angularVelocity += gravityForce * this.rectangle.restoreForce;
+      
+      // 更新角度和速度
+      this.rectangle.angle += this.rectangle.angularVelocity;
+      this.rectangle.angularVelocity *= this.rectangle.damping;
+      
+      // 限制摆动幅度
+      this.rectangle.angle = Math.max(-0.4, Math.min(0.4, this.rectangle.angle));
+    }
+    
+    /**
+     * 更新菱形元素的物理状态
+     */
+    updateDiamond() {
+      // 重力作用（更温和的重力效果）
+      const gravityForce = -this.gravity * Math.sin(this.diamond.angle) / this.diamond.mass;
+      this.diamond.angularVelocity += gravityForce * this.diamond.restoreForce;
+      
+      // 连接约束：长方形的运动通过连接线传递给菱形
+      const connectionForce = (this.rectangle.angle - this.diamond.angle) * this.connectionStiffness;
+      // 考虑质量差异，重的菱形对传导力响应更小
+      const dampedConnectionForce = connectionForce / this.diamond.mass * 0.7; // 进一步减少传导力
+      this.diamond.angularVelocity += dampedConnectionForce;
+      
+      // 平滑角速度变化
+      this.diamond.angularVelocity *= this.diamond.damping;
+      
+      // 计算新角度
+      let newAngle = this.diamond.angle + this.diamond.angularVelocity;
+      
+      // 角度平滑处理
+      const angleDiff = newAngle - this.previousDiamondAngle;
+      if (Math.abs(angleDiff) > 0.01) {
+        // 如果角度变化过大，进行平滑处理
+        newAngle = this.previousDiamondAngle + angleDiff * this.diamond.smoothingFactor;
+      }
+      
+      // 更新角度
+      this.diamond.angle = newAngle;
+      this.previousDiamondAngle = this.diamond.angle;
+      
+      // 限制摆动幅度（菱形运动幅度更小）
+      this.diamond.angle = Math.max(-0.12, Math.min(0.12, this.diamond.angle));
+    }
+    
+    /**
+     * 更新连接线角度
+     */
+    updateConnections() {
+      // line1 平滑跟随菱形运动
+      this.line1.angle = this.diamond.angle * 0.9;
+      
+      // line2 在菱形和长方形之间更平滑的插值
+      this.line2.angle = this.diamond.angle * 0.6 + this.rectangle.angle * 0.4;
+    }
+    
+    /**
+     * 检查是否应该继续动画
+     */
+    shouldContinueAnimation() {
+      const threshold = 0.001;
+      return Math.abs(this.rectangle.angularVelocity) > threshold ||
+             Math.abs(this.diamond.angularVelocity) > threshold ||
+             Math.abs(this.rectangle.angle) > threshold ||
+             Math.abs(this.diamond.angle) > threshold;
     }
 
     /**
@@ -113,26 +214,35 @@ if (!window.cyberRingInjected) {
       const container = document.getElementById('cyber-ring-container');
       if (!container) return;
 
-      const frame2 = container.querySelector('.frame2');
-      const frame = container.querySelector('.frame');
-      const line1 = container.querySelector('.line1');
-      const line2 = container.querySelector('.line2');
-      const frame3 = container.querySelector('.frame3');
+      const frame2 = container.querySelector('.frame2'); // 菱形
+      const frame = container.querySelector('.frame');   // 长方形
+      const line1 = container.querySelector('.line1');   // 顶部连接线
+      const line2 = container.querySelector('.line2');   // 中部连接线
+      const frame3 = container.querySelector('.frame3'); // 控制按钮
 
+      // 菱形跟随自身角度
       if (frame2) {
-        frame2.style.transform = `rotate(${this.pendulum1.angle}rad)`;
+        frame2.style.transform = `rotate(${this.diamond.angle}rad)`;
       }
+      
+      // 长方形跟随自身角度
       if (frame) {
-        frame.style.transform = `rotate(${this.pendulum2.angle}rad)`;
+        frame.style.transform = `rotate(${this.rectangle.angle}rad)`;
       }
+      
+      // 顶部连接线跟随菱形
       if (line1) {
-        line1.style.transform = `rotate(${this.pendulum1.angle}rad)`;
+        line1.style.transform = `rotate(${this.line1.angle}rad)`;
       }
+      
+      // 中部连接线在菱形和长方形之间
       if (line2) {
-        line2.style.transform = `rotate(${this.pendulum1.angle * 0.6}rad)`;
+        line2.style.transform = `rotate(${this.line2.angle}rad)`;
       }
+      
+      // 控制按钮跟随菱形（保持相对位置）
       if (frame3) {
-        frame3.style.transform = `rotate(${this.pendulum1.angle}rad)`;
+        frame3.style.transform = `rotate(${this.diamond.angle}rad)`;
       }
     }
 
@@ -150,8 +260,22 @@ if (!window.cyberRingInjected) {
      * 重置到静止状态
      */
     reset() {
-      this.pendulum1 = { angle: 0, velocity: 0, damping: 0.985 };
-      this.pendulum2 = { angle: 0, velocity: 0, damping: 0.98 };
+      // 重置长方形状态
+      this.rectangle.angle = 0;
+      this.rectangle.angularVelocity = 0;
+      
+      // 重置菱形状态
+      this.diamond.angle = 0;
+      this.diamond.angularVelocity = 0;
+      
+      // 重置连接线
+      this.line1.angle = 0;
+      this.line2.angle = 0;
+      
+      // 重置平滑参数
+      this.previousDiamondAngle = 0;
+      this.angleChangeBuffer = [];
+      
       this.applyTransforms();
     }
 
@@ -255,23 +379,26 @@ if (!window.cyberRingInjected) {
      * 平滑重置到静止状态
      */
     smoothReset() {
-      const resetAnimation = () => {
-        this.physics.pendulum1.velocity *= 0.95;
-        this.physics.pendulum2.velocity *= 0.95;
-        this.physics.pendulum1.angle *= 0.98;
-        this.physics.pendulum2.angle *= 0.98;
+      const resetStep = () => {
+        // 逐渐减小角度和角速度
+        this.physics.rectangle.angle *= 0.9;
+        this.physics.rectangle.angularVelocity *= 0.9;
+        this.physics.diamond.angle *= 0.9;
+        this.physics.diamond.angularVelocity *= 0.9;
         
+        // 更新连接线角度
+        this.physics.updateConnections();
         this.physics.applyTransforms();
-        
-        if (Math.abs(this.physics.pendulum1.angle) > 0.001 || 
-            Math.abs(this.physics.pendulum2.angle) > 0.001) {
-          requestAnimationFrame(resetAnimation);
+
+        // 如果还有明显的运动，继续重置
+        if (Math.abs(this.physics.rectangle.angle) > 0.01 || Math.abs(this.physics.rectangle.angularVelocity) > 0.01 ||
+            Math.abs(this.physics.diamond.angle) > 0.01 || Math.abs(this.physics.diamond.angularVelocity) > 0.01) {
+          requestAnimationFrame(resetStep);
         } else {
           this.physics.reset();
         }
       };
-      
-      resetAnimation();
+      resetStep();
     }
   }
 

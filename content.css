@@ -6,7 +6,7 @@
 #cyber-ring-container {
   position: fixed;
   top: 20px;
-  right: 20px;
+  right: 100px;
   z-index: 999999;
   pointer-events: auto;
   user-select: none;
@@ -56,7 +56,7 @@
 
 .line1 {
   top: 0px;
-  left: 38px;
+  left: 37px;
   width: 1px;
   height: 30px;
   transform-origin: bottom center;
@@ -64,10 +64,10 @@
 }
 
 .line2 {
-  top: 66px;
-  left: 38px;
+  top: 62px;
+  left: 37px;
   width: 1px;
-  height: 25px;
+  height: 40px;
   transform-origin: top center;
 }
 
@@ -78,8 +78,8 @@
   left: 0;
   width: 77px;
   height: 43px;
-  transform-origin: 38.5px 0;
-  transition: transform 0.1s ease-out;
+  transform-origin: 37.5px 0;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .union {
@@ -109,8 +109,8 @@
   left: 19px;
   width: 39px;
   height: 160px;
-  transform-origin: 20px 0;
-  transition: transform 0.1s ease-out;
+  transform-origin: 18px 0;
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .group4 {
@@ -118,7 +118,7 @@
   top: 0px;
   left: 0;
   width: 39px;
-  height: 137px;
+  height: 150px;
   display: flex;
   align-items: center;
   padding-top: 1px;
@@ -156,7 +156,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 7px 0 6px 0;
-  transform-origin: 0 0;
+  transform-origin: -1px 0;
 }
 
 .line22 {
