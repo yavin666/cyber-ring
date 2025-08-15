@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>赛博风铃插件测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .description {
+            font-size: 1.2em;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .instructions {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            text-align: left;
+        }
+        .instructions h2 {
+            color: #FFD700;
+            margin-bottom: 15px;
+        }
+        .instructions ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .instructions li {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 5px;
+            border-left: 3px solid #FFD700;
+        }
+        .note {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+    </style>
+    <!-- 模拟Chrome插件的content script -->
+    <link rel="stylesheet" href="content.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎐 赛博风铃 Chrome 插件</h1>
+        
+        <div class="description">
+            <p>这是一个极致黑白简约的可交互风铃Chrome插件演示页面。</p>
+            <p>风铃组件已固定显示在浏览器页面的右上角，由一个代表风铃的几何菱形和一个代表飘带的长方形视觉元素组成。</p>
+        </div>
+        
+        <div class="instructions">
+            <h2>🎯 交互说明</h2>
+            <ul>
+                <li><strong>鼠标划过风铃区域：</strong> 当您将鼠标移动到右上角的风铃组件区域时，插件会模拟风吹动效果，实现真实物理模拟摆动。</li>
+                <li><strong>风向与速度模拟：</strong> 当鼠标从左向右移动时，风铃会模拟风从左边吹向右边。鼠标移动速度越快，风铃的摆动幅度越大。</li>
+                <li><strong>物理重力模拟：</strong> 菱形重量大于长方形，因此菱形的运动幅度小于长方形的摆动幅度。</li>
+                <li><strong>恢复静止状态：</strong> 当鼠标移开风铃组件区域一段时间后，风铃会平滑地恢复到初始静止状态。</li>
+            </ul>
+        </div>
+        
+        <div class="note">
+            <strong>💡 提示：</strong> 请将鼠标移动到页面右上角的风铃组件上体验交互效果！
+        </div>
+    </div>
+    
+    <!-- 模拟Chrome插件的content script -->
+    <script src="content.js"></script>
+</body>
+</html>

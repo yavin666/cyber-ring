@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "赛博风铃",
+  "version": "1.0.0",
+  "description": "一个极致黑白简约的可交互风铃Chrome插件",
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ]
+}
