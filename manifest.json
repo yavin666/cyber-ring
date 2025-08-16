@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "起风了",
+  "version": "1.0.0",
+  "description": "鼠标交互的赛博风铃",
+  "icons": {
+    "16": "icons/icon.png",
+    "32": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
+  },
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["ring.mp3", "icons/icon.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

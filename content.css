@@ -1,0 +1,252 @@
+/**
+ * 赛博风铃 Chrome 插件样式
+ * 极致黑白简约设计
+ */
+
+#cyber-ring-container {
+  position: fixed;
+  top: 20px;
+  right: 150px;
+  z-index: 999999;
+  pointer-events: auto;
+  user-select: none;
+  font-family: "MS Mincho", "MS 明朝", serif;
+}
+
+.cyber-ring {
+  position: relative;
+  width: 77px;
+  height: 200px;
+  transform-origin: top center;
+}
+
+/* 约束点样式 */
+.constraint-1,
+.constraint-2,
+.constraint-3 {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  z-index: 10;
+}
+
+.constraint-1 {
+  top: 0;
+  left: 37px;
+}
+
+.constraint-2 {
+  top: 23px;
+  left: 37px;
+}
+
+.constraint-3 {
+  top: 67px;
+  left: 37px;
+}
+
+/* 连接线样式 */
+.line1,
+.line2 {
+  position: absolute;
+  background: #454545;
+  transform-origin: top center;
+}
+
+.line1 {
+  top: 0px;
+  left: 37px;
+  width: 1px;
+  height: 30px;
+  transform-origin: bottom center;
+  background: #454545;
+}
+
+.line2 {
+  top: 62px;
+  left: 37px;
+  width: 1px;
+  height: 40px;
+  transform-origin: top center;
+}
+
+/* 菱形风铃主体 */
+.frame2 {
+  position: absolute;
+  top: 23px;
+  left: 0;
+  width: 77px;
+  height: 43px;
+  transform-origin: 37.5px 0;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 999;
+}
+
+.union {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: url('data:image/svg+xml;utf8,<svg width="77" height="43" viewBox="0 0 77 43" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 21.5L38.5 0L77 21.5L38.5 43L0 21.5Z" fill="white" stroke="%23454545" stroke-width="1"/></svg>') no-repeat center;
+  background-size: contain;
+}
+
+.text2 {
+  margin: 0;
+  line-height: 10px;
+  letter-spacing: 0;
+  color: #454545;
+  font-size: 8px;
+  text-align: center;
+  font-family: "MS Mincho", "MS 明朝", serif;
+}
+
+/* 飘带长方形 */
+.frame {
+  position: absolute;
+  top: 65px;
+  left: 19px;
+  width: 39px;
+  height: 160px;
+  transform-origin: 18px 0;
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.group4 {
+  position: absolute;
+  top: 0px;
+  left: 0;
+  width: 39px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  padding-top: 1px;
+}
+
+.rectangle1 {
+  display: flex;
+  width: 100%;
+  height: 90px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #454545;
+  background: #ffffff;
+  padding: 50px 14px 50px 13px;
+  box-sizing: border-box;
+}
+
+.text {
+  margin: 0;
+  line-height: 12px;
+  letter-spacing: 0;
+  color: #454545;
+  font-size: 10px;
+  text-align: center;
+  font-family: "MS Mincho", "MS 明朝", serif;
+  writing-mode: vertical-rl;
+}
+
+/* 控制按钮区域 */
+.frame3 {
+  position: absolute;
+  top: 0px;
+  left: 38px;
+  width: 17px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0 6px 0;
+  transform-origin: -1px 0;
+}
+
+.line22 {
+  position: absolute;
+  top: 3px;
+  left: 19px;
+  width: 17px;
+  height: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4px 0 9px 0;
+}
+
+
+
+.control-text {
+  margin: 0;
+  width: 16px;
+  height: 11px;
+  text-align: center;
+  letter-spacing: 0;
+  color: #454545;
+  font-size: 8px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.control-text.yes {
+  margin-top: 7px;
+  transform: translateY(2px);
+}
+
+.control-text.no {
+  margin-top: 7px;
+}
+
+/* 悬停效果 */
+#cyber-ring-container:hover {
+  cursor: pointer;
+}
+
+#cyber-ring-container:hover .rectangle1 {
+  box-shadow: 0 0 5px rgba(69, 69, 69, 0.3);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  #cyber-ring-container {
+    top: 10px;
+    right: 50px;
+    transform: scale(0.8);
+  }
+}
+
+/* 动画关键帧 */
+@keyframes gentle-sway {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(1deg); }
+  75% { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* 微风效果 */
+.cyber-ring.gentle-breeze .frame2 {
+  animation: gentle-sway 3s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.cyber-ring.gentle-breeze .frame {
+  animation: gentle-sway 2.5s ease-in-out infinite;
+  animation-delay: 0.2s;
+}
+
+/* 确保插件不影响页面布局 */
+#cyber-ring-container * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 防止与页面元素冲突 */
+#cyber-ring-container {
+  all: initial;
+  position: fixed !important;
+  top: 20px !important;
+  right: 50px !important;
+  z-index: 999999 !important;
+  font-family: "MS Mincho", "MS 明朝", serif !important;
+}
