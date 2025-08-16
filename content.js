@@ -65,6 +65,7 @@ if (!window.cyberRingInjected) {
       this.audioLoaded = false;
       this.userInteracted = false;
       this.pendingPlay = false;
+      this.pendingForceMagnitude = 1.0;
       
       this.init();
     }
@@ -139,12 +140,13 @@ if (!window.cyberRingInjected) {
     /**
      * 更新运动状态显示
      * @param {boolean} isMoving - 是否处于运动状态
+     * @param {number} forceMagnitude - 力度大小，用于调整音量
      */
-    updateStatus(isMoving) {
+    updateStatus(isMoving, forceMagnitude = 1.0) {
       if (this.isMoving !== isMoving) {
         // 检测到运动状态从静止变为运动时播放音效
         if (!this.isMoving && isMoving) {
-          this.playRingSound();
+          this.playRingSound(forceMagnitude);
         }
         
         this.isMoving = isMoving;
@@ -164,7 +166,7 @@ if (!window.cyberRingInjected) {
           // 如果有待播放的音效，现在播放
           if (this.pendingPlay) {
             this.pendingPlay = false;
-            this.playRingSound();
+            this.playRingSound(this.pendingForceMagnitude || 1.0);
           }
         }
       };
@@ -180,9 +182,17 @@ if (!window.cyberRingInjected) {
     
     /**
      * 播放风铃音效
+     * @param {number} forceMagnitude - 力度大小，用于调整音量
      */
-    async playRingSound() {
+    async playRingSound(forceMagnitude = 1.0) {
       try {
+        // 设置最小力度阈值，避免轻微滚动时播放音效
+        const minForceThreshold = 0.3;
+        if (forceMagnitude < minForceThreshold) {
+          console.log(`[风铃音效] 力度${forceMagnitude.toFixed(2)}低于阈值${minForceThreshold}，跳过播放`);
+          return;
+        }
+        
         // 检查音频是否已加载
         if (!this.audioLoaded || !this.audio) {
           console.warn('[风铃音效] 音频未加载，跳过播放');
@@ -192,14 +202,22 @@ if (!window.cyberRingInjected) {
         // 检查是否需要用户交互来解锁音频
         if (!this.userInteracted) {
           this.pendingPlay = true;
+          this.pendingForceMagnitude = forceMagnitude;
           this.showAudioTip();
           return;
         }
         
+        // 根据力度动态调整音量（范围：0.05-0.4）
+        const minVolume = 0.05;
+        const maxVolume = 0.4;
+        const normalizedForce = Math.min(forceMagnitude / 3.0, 1.0); // 假设最大力度为3.0
+        const dynamicVolume = minVolume + (maxVolume - minVolume) * normalizedForce;
+        this.audio.volume = dynamicVolume;
+        
         // 重置音频到开始位置
         this.audio.currentTime = 0;
         
-        console.log('[风铃音效] 开始播放音效');
+        console.log(`[风铃音效] 开始播放音效，力度：${forceMagnitude.toFixed(2)}，音量：${dynamicVolume.toFixed(2)}`);
         
         // 播放音效
         const playPromise = this.audio.play();
@@ -326,6 +344,9 @@ if (!window.cyberRingInjected) {
       
       // 运动状态控制器
       this.motionStatusController = new MotionStatusController();
+      
+      // 当前力度信息，用于音频播放
+      this.currentForceMagnitude = 0;
     }
 
     /**
@@ -337,6 +358,9 @@ if (!window.cyberRingInjected) {
       // 设置外力参数
       this.externalForce.magnitude = forceMagnitude;
       this.externalForce.direction = direction;
+      
+      // 存储当前力度信息，用于音频播放
+      this.currentForceMagnitude = forceMagnitude;
       
       // 外力主要作用于底部的长方形摆锤
       // 使用力矩公式：τ = F × r × sin(θ)
@@ -392,7 +416,10 @@ if (!window.cyberRingInjected) {
       
       // 更新运动状态显示
       const isMoving = this.shouldContinueAnimation();
-      this.motionStatusController.updateStatus(isMoving);
+      this.motionStatusController.updateStatus(isMoving, this.currentForceMagnitude);
+      
+      // 衰减力度信息
+      this.currentForceMagnitude *= 0.95;
       
       // 检查是否继续动画
       if (isMoving) {
