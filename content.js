@@ -701,6 +701,121 @@ if (!window.cyberRingInjected) {
     }
   }
 
+  /**
+   * 滚动交互处理类
+   */
+  class ScrollInteraction {
+    constructor(physicsSimulator) {
+      this.physics = physicsSimulator;
+      this.lastScrollY = window.pageYOffset;
+      this.scrollVelocity = 0;
+      this.lastScrollTime = performance.now();
+      this.scrollTimeout = null;
+      this.isScrolling = false;
+      this.velocityDecay = 0.95; // 速度衰减系数
+      this.init();
+    }
+    
+    /**
+     * 初始化滚动事件监听
+     */
+    init() {
+      // 使用passive监听器提高性能
+      window.addEventListener('scroll', this.handleScroll.bind(this), { passive: true });
+      
+      // 监听滚轮事件以获得更精确的滚动信息
+      window.addEventListener('wheel', this.handleWheel.bind(this), { passive: true });
+    }
+    
+    /**
+     * 处理滚动事件
+     */
+    handleScroll() {
+      const currentTime = performance.now();
+      const currentScrollY = window.pageYOffset;
+      const deltaTime = currentTime - this.lastScrollTime;
+      
+      // 避免除零错误
+      if (deltaTime > 0) {
+        // 计算滚动距离和速度
+        const deltaY = currentScrollY - this.lastScrollY;
+        const velocity = Math.abs(deltaY) / deltaTime;
+        
+        // 更新滚动速度（使用指数移动平均）
+        this.scrollVelocity = this.scrollVelocity * 0.7 + velocity * 0.3;
+        
+        // 如果有明显的滚动，开始物理模拟
+        if (Math.abs(deltaY) > 1) {
+          this.isScrolling = true;
+          this.physics.start();
+          
+          // 计算风力方向：向上滚动时风铃向左摆动，向下滚动时风铃向右摆动
+          const direction = deltaY > 0 ? 1 : -1; // 向下滚动为正方向（右摆）
+          
+          // 计算风力强度，基于滚动速度
+          const forceMagnitude = Math.min(this.scrollVelocity * 0.1 + Math.abs(deltaY) * 0.02, 3.0);
+          
+          // 应用风力到物理系统
+          this.physics.applyForce(forceMagnitude, direction);
+        }
+        
+        // 更新记录
+        this.lastScrollY = currentScrollY;
+        this.lastScrollTime = currentTime;
+      }
+      
+      // 清除之前的超时，设置新的停止检测
+      if (this.scrollTimeout) {
+        clearTimeout(this.scrollTimeout);
+      }
+      
+      // 滚动停止检测
+      this.scrollTimeout = setTimeout(() => {
+        this.handleScrollStop();
+      }, 150); // 150ms无滚动则认为停止
+    }
+    
+    /**
+     * 处理滚轮事件（更精确的滚动检测）
+     */
+    handleWheel(event) {
+      // 获取滚轮的deltaY值
+      const deltaY = event.deltaY;
+      
+      if (Math.abs(deltaY) > 0) {
+        this.isScrolling = true;
+        this.physics.start();
+        
+        // 计算风力方向
+        const direction = deltaY > 0 ? 1 : -1; // 向下滚动为正方向（右摆）
+        
+        // 基于滚轮增量计算风力强度
+        const forceMagnitude = Math.min(Math.abs(deltaY) * 0.008, 2.5);
+        
+        // 应用风力
+        this.physics.applyForce(forceMagnitude, direction);
+      }
+    }
+    
+    /**
+     * 处理滚动停止
+     */
+    handleScrollStop() {
+      this.isScrolling = false;
+      this.scrollVelocity = 0;
+      
+      // 让风铃自然衰减，不立即停止物理模拟
+      // 物理系统会在shouldContinueAnimation()中自动判断是否停止
+    }
+    
+    /**
+     * 获取当前滚动状态
+     */
+    isActive() {
+      return this.isScrolling;
+    }
+  }
+
   // 初始化插件
   function init() {
     // 创建风铃组件
@@ -712,7 +827,10 @@ if (!window.cyberRingInjected) {
     // 初始化鼠标交互
     const mouseInteraction = new MouseInteraction(physics);
     
-    console.log('赛博风铃插件已加载');
+    // 初始化滚动交互
+    const scrollInteraction = new ScrollInteraction(physics);
+    
+    console.log('赛博风铃插件已加载（包含鼠标和滚动交互）');
   }
 
   // 等待DOM加载完成后初始化
