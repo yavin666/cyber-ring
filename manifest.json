@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "赛博风铃",
+  "name": "起风了",
   "version": "1.0.0",
-  "description": "起风了",
+  "description": "鼠标交互的赛博风铃",
   "icons": {
     "16": "icons/icon.png",
     "32": "icons/icon.png",
@@ -22,7 +22,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["ring.mp3", "icons/icon.svg", "icons/icon16.svg", "icons/icon48.svg"],
+      "resources": ["ring.mp3", "icons/icon.png"],
       "matches": ["<all_urls>"]
     }
   ]

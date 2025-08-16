@@ -191,7 +191,6 @@ if (!window.cyberRingInjected) {
         
         // 检查是否需要用户交互来解锁音频
         if (!this.userInteracted) {
-          console.warn('[风铃音效] 需要用户交互来解锁音频，标记为待播放');
           this.pendingPlay = true;
           this.showAudioTip();
           return;
